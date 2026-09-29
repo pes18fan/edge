@@ -27,7 +27,7 @@ typedef struct {
     bool verbose;
 } state_t;
 
-state_t make_state(const char *savedfile, bool verbosity)
+state_t make_state(const char *savedfile, bool verbose)
 {
     state_t state = {
         .tfile = tmpfile(),
@@ -37,7 +37,7 @@ state_t make_state(const char *savedfile, bool verbosity)
         .zero_cap = ZERO_INITIAL_CAP,
         .dot = NULL,
         .dol = NULL,
-        .verbose = verbosity,
+        .verbose = verbose,
     };
     state.zero[0] = 0;
     state.zero[1] = 0;
@@ -157,8 +157,8 @@ int main(int argc, const char *argv[])
     struct Argparser *p =
         ap_make_parser(NULL, argv[0], "line editor", 'n', NULL);
 
-    bool not_verbose;
-    ap_add_flag(p, "--no-verbose", "-n", "don't be verbose", 'b', &not_verbose);
+    bool silent;
+    ap_add_flag(p, "--silent", "-s", "Suppress diagnostics", 'b', &silent);
 
     if (ap_parse(p, argc, argv) == -1)
         return 1;
@@ -166,7 +166,7 @@ int main(int argc, const char *argv[])
     // done with parsing args
     ap_destroy_parser(p);
 
-    state_t state = make_state(NULL, !not_verbose);
+    state_t state = make_state(NULL, !silent);
     run_ed(&state);
     destroy_state(&state);
 
