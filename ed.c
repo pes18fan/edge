@@ -11,9 +11,19 @@
 #define SAVED_FILE_LEN_MAX 128
 #define ZERO_INITIAL_CAP 16
 
+#define todo()                                                     \
+    do {                                                           \
+        fprintf(stderr, "crashing, this code is not yet done!\n"); \
+        fprintf(stderr, "at line: %d\n", __LINE__);                \
+        exit(1);                                                   \
+    } while (0);
+
 typedef struct {
+    // Temporary file where the data is stored while editing
     FILE *tfile;
     int tfline;
+
+    // File to actually commit data to
     char savedfile[SAVED_FILE_LEN_MAX];
 
     // Dynamic array storing byte offsets of each line
@@ -58,6 +68,12 @@ void destroy_state(state_t *state)
 {
     fclose(state->tfile);
     free(state->zero);
+}
+
+void write_to_sfile(state_t *state)
+{
+    (void) state;
+    todo();
 }
 
 void write_to_tfile(state_t *state, char *s)
@@ -113,7 +129,7 @@ void do_command(state_t *state, const char *input)
     case 'w':
         if (!(*state->savedfile)) {
             int len = strlen(input);
-            if (len < 3 && !isspace(input[1])) {
+            if (len < 2 || !isspace(input[1])) {
                 wut();
                 return;
             }
@@ -126,6 +142,7 @@ void do_command(state_t *state, const char *input)
         }
 
         // TODO: write to the savedfile
+        write_to_sfile(state);
         break;
     default:
         wut();
@@ -138,7 +155,8 @@ void run_ed(state_t *state)
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         // trim all trailing whitespace
         int start = strcspn(buf, "\n");
-        for (int i = start; !isspace(buf[i]); i--)
+        for (int i = start; buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\t';
+             i--)
             buf[i] = '\0';
 
         do_command(state, buf);
