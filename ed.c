@@ -128,13 +128,13 @@ void do_command(state_t *state, const char *input)
         break;
     case 'w':
         if (!(*state->savedfile)) {
-            int len = strlen(input);
+            size_t len = strlen(input);
             if (len < 2 || !isspace(input[1])) {
                 wut();
                 return;
             }
 
-            for (int i = 2; i < len; i++) {
+            for (size_t i = 2; i < len; i++) {
                 if (i + 2 >= SAVED_FILE_LEN_MAX)
                     break;
                 state->savedfile[i] = input[i];
@@ -154,9 +154,9 @@ void run_ed(state_t *state)
     char buf[128];
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         // trim all trailing whitespace
-        int start = strcspn(buf, "\n");
-        for (int i = start; buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\t';
-             i--)
+        size_t start = strcspn(buf, "\n");
+        for (size_t i = start;
+             buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\t'; i--)
             buf[i] = '\0';
 
         do_command(state, buf);
