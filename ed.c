@@ -76,7 +76,6 @@ void start_insert(state_t *state)
 {
     char buf[128];
 
-    int i = 1;
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         if (*buf && buf[0] == '.')
             return;
@@ -127,9 +126,10 @@ void do_command(state_t *state, const char *input)
         }
 
         // TODO: write to the savedfile
+        break;
+    default:
+        wut();
     }
-
-    wut();
 }
 
 void run_ed(state_t *state)
