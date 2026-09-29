@@ -4,7 +4,7 @@ TARGET := ed
 all: $(TARGET)
 
 $(TARGET): $(SOURCE)
-	cc -Wall -Wextra -Werror $(SOURCE) -o $(TARGET) -g
+	cc -fsanitize=address -Wall -Wextra -Werror $(SOURCE) -o $(TARGET) -g
 
 clean:
 	rm -f $(TARGET)
