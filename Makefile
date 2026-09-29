@@ -1,0 +1,10 @@
+SOURCE := ed.c argparse.c
+TARGET := ed
+
+all: $(TARGET)
+
+$(TARGET): $(SOURCE)
+	cc -Wall -Wextra -Werror $(SOURCE) -o $(TARGET) -g
+
+clean:
+	rm -f $(TARGET)
