@@ -52,6 +52,8 @@ int main(int argc, const char *argv[])
     if (ap_parse(p, argc, argv) == -1)
         return 1;
 
+    ap_destroy_parser(p);
+
     struct sigaction sa = {
         .sa_handler = sigint_handler,
         .sa_flags = 0,
