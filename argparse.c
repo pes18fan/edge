@@ -317,7 +317,7 @@ static int ap_parse_argument(struct Argparser *parser, int argc,
             return -1;
         }
 
-        *((int *) parser->_arg) = v;
+        *((int *) parser->_arg) = (int) v;
 
         argv++;
         argc--;
@@ -381,7 +381,7 @@ static int ap_parse_argument_flag(struct Flag *flag, int argc,
             return -1;
         }
 
-        *((int *) flag->_arg) = v;
+        *((int *) flag->_arg) = (int) v;
 
         argv++;
         argc--;

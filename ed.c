@@ -1,10 +1,9 @@
-#include <ctype.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "argparse.h"
 
@@ -70,6 +69,18 @@ void destroy_state(state_t *state)
     free(state->zero);
 }
 
+bool is_whitespace(char c)
+{ return c == ' ' || c == '\n' || c == '\t' || c == '\v'; }
+
+// Gotta close the temp file!
+noreturn void die(state_t *state, const char *perror_msg)
+{
+    if (perror_msg != NULL)
+        perror(perror_msg);
+    destroy_state(state);
+    exit(1);
+}
+
 void write_to_sfile(state_t *state)
 {
     (void) state;
@@ -102,8 +113,7 @@ void start_insert(state_t *state)
         return;
     }
 
-    perror("fgets");
-    exit(1);
+    die(state, "fgets");
 }
 
 void respond(state_t *state, const char *response)
@@ -129,7 +139,7 @@ void do_command(state_t *state, const char *input)
     case 'w':
         if (!(*state->savedfile)) {
             size_t len = strlen(input);
-            if (len < 2 || !isspace(input[1])) {
+            if (len < 2 || !is_whitespace(input[1])) {
                 wut();
                 return;
             }
@@ -155,8 +165,7 @@ void run_ed(state_t *state)
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         // trim all trailing whitespace
         size_t start = strcspn(buf, "\n");
-        for (size_t i = start;
-             buf[i] == ' ' || buf[i] == '\n' || buf[i] == '\t'; i--)
+        for (size_t i = start; is_whitespace(buf[i]); i--)
             buf[i] = '\0';
 
         do_command(state, buf);
@@ -166,8 +175,7 @@ void run_ed(state_t *state)
         return;
     }
 
-    perror("fgets");
-    exit(1);
+    die(state, "fgets");
 }
 
 int main(int argc, const char *argv[])
