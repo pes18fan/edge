@@ -1,5 +1,5 @@
-SOURCE := ed.c argparse.c
-TARGET := ed
+SOURCE := edge.c argparse.c
+TARGET := edge
 
 CC := cc
 CFLAGS := \

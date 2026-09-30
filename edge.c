@@ -15,7 +15,7 @@
 
 #define SAVED_FILE_LEN_MAX 128
 #define LINE_MAX 128
-#define ZERO_INITIAL_CAP 16
+#define ZERO_INITIAL_CAP sizeof(int) * 8
 
 typedef struct {
     // Temporary file where the data is stored while editing
@@ -27,10 +27,11 @@ typedef struct {
 
     // Dynamic array storing byte offsets of each line
     int *zero;
-    int zero_cap;
+    size_t zero_cap;
+    size_t zero_len;
 
-    int *dot;  // Pointer to current line (in zero)
-    int *dol;  // Pointer to last line (in zero)
+    size_t dot_index;  // Index to current line in zero
+    size_t dol_index;  // Index to last line in zero
 
     // In 'insert mode'?
     bool inserting;
@@ -38,27 +39,48 @@ typedef struct {
     // For counting how much got written
     int count;
 
-    // Should ed be verbose?
+    // Should edge be verbose?
     bool verbose;
 } state_t;
 
+int *dot(state_t *state)
+{ return &state->zero[state->dot_index]; }
+
+int *dol(state_t *state)
+{ return &state->zero[state->dol_index]; }
+
 state_t make_state(const char *savedfile, bool verbose)
 {
+    FILE *tf = tmpfile();
+    if (tf == NULL) {
+        perror("tmpfile");
+        exit(1);
+    }
+
+    int *z = malloc(ZERO_INITIAL_CAP);
+    if (z == NULL) {
+        perror("malloc");
+        fclose(tf);
+        exit(1);
+    }
+
+    z[0] = 0;
+    z[1] = 0;
+    int dot_index = 1;
+    int dol_index = dot_index;
+
     state_t state = {
-        .tfile = tmpfile(),
+        .tfile = tf,
         .tfline = 1,
-        .savedfile = "",
-        .zero = malloc(ZERO_INITIAL_CAP),
+        // .savedfile = ...
+        .zero = z,
         .zero_cap = ZERO_INITIAL_CAP,
-        .dot = NULL,
-        .dol = NULL,
+        .zero_len = 1 * sizeof(int),  // as zero[0] is occupied from start
+        .dot_index = dot_index,
+        .dol_index = dol_index,
         .inserting = false,
         .verbose = verbose,
     };
-    state.zero[0] = 0;
-    state.zero[1] = 0;
-    state.dot = &state.zero[1];
-    state.dol = state.dot;
 
     if (savedfile != NULL) {
         for (int i = 0; i < SAVED_FILE_LEN_MAX; i++) {
@@ -96,7 +118,7 @@ noreturn void die(state_t *state, const char *perror_msg)
 // Returns number of bytes written
 int write_to_sfile(state_t *state)
 {
-    int *end = state->dol;
+    int *end = dol(state);
     int *curr = state->zero + 1;  // first of zero is reserved
     if (curr == end)
         return 0;
@@ -109,12 +131,12 @@ int write_to_sfile(state_t *state)
     rewind(state->tfile);
 
     int acc = 0;
-    int next_line_pos = 0;
+    int pos = 0;
     do {
         // if not the next line we gotta jump around
-        if (*curr != next_line_pos) {
+        if (*curr != pos + 1) {
             fseek(state->tfile, *curr, SEEK_SET);
-            next_line_pos = *curr;
+            pos = *curr - 1;
         }
 
         char buf[LINE_MAX];
@@ -126,14 +148,14 @@ int write_to_sfile(state_t *state)
             }
         }
 
-        int wrote = fprintf(sf, "%s", buf);
+        int w = fprintf(sf, "%s", buf);
         if (acc < 0) {
             fclose(sf);
             die(state, "fprintf");
         }
 
-        acc += wrote;
-        next_line_pos += acc + 1;
+        acc += w;
+        pos += w;
 
         curr++;
     } while (curr != end);
@@ -141,7 +163,7 @@ int write_to_sfile(state_t *state)
     fclose(sf);
 
     // Send tfile back to original location
-    fseek(state->tfile, *state->dot, SEEK_SET);
+    fseek(state->tfile, *dot(state), SEEK_SET);
 
     return acc;
 }
@@ -153,11 +175,19 @@ void write_to_tfile(state_t *state, const char *s)
         die(state, "fprintf");
 
     state->tfline++;
-    state->dot++;
-    *state->dot = w;
-    state->dol++;
+    state->dot_index++;
+    state->dol_index++;
+    state->zero_len += sizeof(int);
 
-    // TODO: make sure zero grows properly when it runs out of capacity
+    if (state->zero_len >= state->zero_cap) {
+        state->zero_cap *= 2;
+        int *res = realloc(state->zero, state->zero_cap);
+        if (res == NULL)
+            die(state, "realloc");
+        state->zero = res;
+    }
+
+    *dot(state) = w;
 }
 
 void respond(state_t *state, const char *response)
@@ -179,11 +209,13 @@ void respondf(state_t *state, const char *fmt, ...)
 
 #define wut() respond(state, "?");
 
-void do_command(state_t *state, const char *input)
+// Returns 0 in all cases except when the 'Q' (force quit) command is given,
+// in which case it returns 1
+int do_command(state_t *state, const char *input)
 {
     if (input == NULL || !(*input)) {
         wut();
-        return;
+        return 0;
     }
 
     char c = input[0];
@@ -198,7 +230,6 @@ void do_command(state_t *state, const char *input)
             write_to_tfile(state, input);
         }
     } else {
-
         switch (c) {
         case 'i':
             state->inserting = true;
@@ -208,7 +239,7 @@ void do_command(state_t *state, const char *input)
                 size_t len = strlen(input);
                 if (len < 2 || !is_whitespace(input[1])) {
                     wut();
-                    return;
+                    return 0;
                 }
 
                 for (size_t i = 2; i < len; i++) {
@@ -222,10 +253,14 @@ void do_command(state_t *state, const char *input)
             respondf(state, "%d\n", cnt);
             state->count = cnt;
             break;
+        case 'Q':
+            return 1;
         default:
             wut();
         }
     }
+
+    return 0;
 }
 
 void run_ed(state_t *state)
@@ -237,7 +272,8 @@ void run_ed(state_t *state)
         for (size_t i = start; is_whitespace(buf[i]); i--)
             buf[i] = '\0';
 
-        do_command(state, buf);
+        if (do_command(state, buf) == 1)
+            return;
     }
 
     if (feof(stdin)) {
