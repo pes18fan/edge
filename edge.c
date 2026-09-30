@@ -281,6 +281,7 @@ int do_command(state_t *state, const char *input)
             }
 
             return 1;
+        // NOTE: there's some issues with the positioning of $ and ., diagnose
         case '.': {
             if (arg != NULL) {
                 wut_and_return();
