@@ -142,8 +142,7 @@ int write_to_sfile(state_t *state)
 
         char buf[LINE_MAX];
         if (fgets(buf, sizeof buf, state->tfile) == NULL) {
-            if (!feof(state->tfile)) {
-                // ferror always true here
+            if (ferror(state->tfile)) {
                 fclose(sf);
                 die(state, "fgets");
             }
@@ -216,9 +215,14 @@ void respondf(state_t *state, const char *fmt, ...)
 // in which case it returns 1
 int do_command(state_t *state, const char *input)
 {
+#define wut_and_return() \
+    do {                 \
+        wut();           \
+        return 0;        \
+    } while (0)
+
     if (input == NULL || !(*input)) {
-        wut();
-        return 0;
+        wut_and_return();
     }
 
     char c = input[0];
@@ -233,22 +237,38 @@ int do_command(state_t *state, const char *input)
             write_to_tfile(state, input);
         }
     } else {
+        // get the argument (if its there)
+        const char *arg = NULL;
+        size_t arglen = 0;
+        size_t len = strlen(input);
+        if (len > 2 && is_whitespace(input[1])) {
+            for (size_t i = 2; i < len; i++) {
+                if (!is_whitespace(input[i])) {
+                    arg = input + i;
+                    arglen = len - i;
+                    break;
+                }
+            }
+        }
+
         switch (c) {
         case 'i':
+            if (arg != NULL) {
+                wut_and_return();
+            }
+
             state->inserting = true;
             break;
         case 'w':
             if (!(*state->savedfile)) {
-                size_t len = strlen(input);
-                if (len < 2 || !is_whitespace(input[1])) {
-                    wut();
-                    return 0;
+                if (arg == NULL) {
+                    wut_and_return();
                 }
 
-                for (size_t i = 2; i < len; i++) {
-                    if (i + 2 >= SAVED_FILE_LEN_MAX)
+                for (size_t i = 0; i < arglen; i++) {
+                    if (i >= SAVED_FILE_LEN_MAX)
                         break;
-                    state->savedfile[i - 2] = input[i];
+                    state->savedfile[i] = arg[i];
                 }
             }
 
@@ -256,13 +276,59 @@ int do_command(state_t *state, const char *input)
             respondf(state, "%d\n", count);
             break;
         case 'Q':
+            if (arg != NULL) {
+                wut_and_return();
+            }
+
             return 1;
+        case '.': {
+            if (arg != NULL) {
+                wut_and_return();
+            }
+
+            if (is_tfile_empty(state)) {
+                wut_and_return();
+            }
+
+            fseek(state->tfile, *dot(state), SEEK_SET);
+            char buf[LINE_MAX];
+            if (fgets(buf, sizeof buf, state->tfile) == NULL) {
+                if (ferror(state->tfile)) {
+                    die(state, "fgets");
+                }
+            }
+
+            respondf(state, "%s", buf);
+            break;
+        }
+        case '$': {
+            if (arg != NULL) {
+                wut_and_return();
+            }
+
+            if (is_tfile_empty(state)) {
+                wut_and_return();
+            }
+
+            fseek(state->tfile, *dol(state), SEEK_SET);
+            char buf[LINE_MAX];
+            if (fgets(buf, sizeof buf, state->tfile) == NULL) {
+                if (ferror(state->tfile)) {
+                    die(state, "fgets");
+                }
+            }
+
+            respondf(state, "%s", buf);
+            fseek(state->tfile, *dot(state), SEEK_SET);
+            break;
+        }
         default:
             wut();
         }
     }
 
     return 0;
+#undef wut_and_return
 }
 
 void run_edge(state_t *state)
@@ -271,7 +337,7 @@ void run_edge(state_t *state)
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         // trim all trailing whitespace
         size_t start = strcspn(buf, "\n");
-        for (size_t i = start; is_whitespace(buf[i]); i--)
+        for (size_t i = start; i > 0 && is_whitespace(buf[i]); i--)
             buf[i] = '\0';
 
         if (do_command(state, buf) == 1)
