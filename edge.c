@@ -265,7 +265,7 @@ int do_command(state_t *state, const char *input)
     return 0;
 }
 
-void run_ed(state_t *state)
+void run_edge(state_t *state)
 {
     char buf[LINE_MAX];
     while (fgets(buf, sizeof buf, stdin) != NULL) {
@@ -300,7 +300,7 @@ int main(int argc, const char *argv[])
     ap_destroy_parser(p);
 
     state_t state = make_state(NULL, !silent);
-    run_ed(&state);
+    run_edge(&state);
     destroy_state(&state);
 
     return 0;
