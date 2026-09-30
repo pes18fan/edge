@@ -36,18 +36,9 @@ typedef struct {
     // In 'insert mode'?
     bool inserting;
 
-    // For counting how much got written
-    int count;
-
     // Should edge be verbose?
     bool verbose;
 } state_t;
-
-int *dot(state_t *state)
-{ return &state->zero[state->dot_index]; }
-
-int *dol(state_t *state)
-{ return &state->zero[state->dol_index]; }
 
 state_t make_state(const char *savedfile, bool verbose)
 {
@@ -65,13 +56,12 @@ state_t make_state(const char *savedfile, bool verbose)
     }
 
     z[0] = 0;
-    z[1] = 0;
-    int dot_index = 1;
-    int dol_index = dot_index;
+    size_t dot_index = 0;
+    size_t dol_index = dot_index;
 
     state_t state = {
         .tfile = tf,
-        .tfline = 1,
+        .tfline = 0,
         // .savedfile = ...
         .zero = z,
         .zero_cap = ZERO_INITIAL_CAP,
@@ -101,6 +91,15 @@ void destroy_state(state_t *state)
     free(state->zero);
 }
 
+int *dot(state_t *state)
+{ return &state->zero[state->dot_index]; }
+
+int *dol(state_t *state)
+{ return &state->zero[state->dol_index]; }
+
+bool is_tfile_empty(state_t *state)
+{ return dol(state) == state->zero; }
+
 bool is_whitespace(char c)
 { return c == ' ' || c == '\n' || c == '\t' || c == '\v'; }
 
@@ -118,26 +117,28 @@ noreturn void die(state_t *state, const char *perror_msg)
 // Returns number of bytes written
 int write_to_sfile(state_t *state)
 {
-    int *end = dol(state);
-    int *curr = state->zero + 1;  // first of zero is reserved
-    if (curr == end)
+    FILE *sf = fopen(state->savedfile, "w");
+    if (sf == NULL) {
+        fclose(sf);
+        die(state, "fopen");
+    }
+
+    if (is_tfile_empty(state))
         return 0;
 
-    FILE *sf = fopen(state->savedfile, "w");
-    if (sf == NULL)
-        die(state, "fopen");
+    int *ptr = state->zero + 1;  // first of zero is reserved
+    int *end = dol(state);
 
     // Send tfile back to start
     rewind(state->tfile);
 
     int acc = 0;
-    int pos = 0;
-    do {
-        // if not the next line we gotta jump around
-        if (*curr != pos + 1) {
-            fseek(state->tfile, *curr, SEEK_SET);
-            pos = *curr - 1;
-        }
+    while (true) {
+        // NOTE: this fseek is a bit redundant in a lot of cases, as often the
+        // next offset in zero is right next to the previous; but in the cases
+        // where that's not the case this will unambigiously switch
+        // still, might hurt perf that way
+        fseek(state->tfile, *ptr, SEEK_SET);
 
         char buf[LINE_MAX];
         if (fgets(buf, sizeof buf, state->tfile) == NULL) {
@@ -149,16 +150,18 @@ int write_to_sfile(state_t *state)
         }
 
         int w = fprintf(sf, "%s", buf);
-        if (acc < 0) {
+        if (w < 0) {
             fclose(sf);
             die(state, "fprintf");
         }
 
         acc += w;
-        pos += w;
 
-        curr++;
-    } while (curr != end);
+        if (ptr == end)
+            break;
+
+        ptr++;
+    }
 
     fclose(sf);
 
@@ -170,8 +173,8 @@ int write_to_sfile(state_t *state)
 
 void write_to_tfile(state_t *state, const char *s)
 {
-    int w = fprintf(state->tfile, "%s\n", s);
-    if (w < 0)
+    int p = (int) ftell(state->tfile);
+    if (fprintf(state->tfile, "%s\n", s) < 0)
         die(state, "fprintf");
 
     state->tfline++;
@@ -187,7 +190,7 @@ void write_to_tfile(state_t *state, const char *s)
         state->zero = res;
     }
 
-    *dot(state) = w;
+    *dot(state) = p;
 }
 
 void respond(state_t *state, const char *response)
@@ -249,9 +252,8 @@ int do_command(state_t *state, const char *input)
                 }
             }
 
-            int cnt = write_to_sfile(state);
-            respondf(state, "%d\n", cnt);
-            state->count = cnt;
+            int count = write_to_sfile(state);
+            respondf(state, "%d\n", count);
             break;
         case 'Q':
             return 1;

@@ -10,7 +10,7 @@
 
 #define __debugf(fmt, ...)            \
     do {                              \
-        printf("DEBUG:: ");           \
+        printf("DEBUG: ");            \
         printf((fmt), ##__VA_ARGS__); \
     } while (0)
 
