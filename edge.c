@@ -38,6 +38,10 @@ typedef struct {
 
     // Should edge be verbose?
     bool verbose;
+
+    // Did the temp buffer change without those changes being written to
+    // savedfile?
+    bool changed;
 } state_t;
 
 state_t make_state(const char *savedfile, bool verbose)
@@ -70,6 +74,7 @@ state_t make_state(const char *savedfile, bool verbose)
         .dol_index = dol_index,
         .inserting = false,
         .verbose = verbose,
+        .changed = false,
     };
 
     if (savedfile != NULL) {
@@ -166,6 +171,7 @@ int write_to_sfile(state_t *state)
 
     // Send tfile back to original location
     fseek(state->tfile, *dot(state), SEEK_SET);
+    state->changed = false;
 
     return acc;
 }
@@ -190,6 +196,8 @@ void write_to_tfile(state_t *state, const char *s)
     }
 
     *dot(state) = p;
+
+    state->changed = true;
 }
 
 void respond(state_t *state, const char *response)
@@ -200,29 +208,28 @@ void respond(state_t *state, const char *response)
 
 void respondf(state_t *state, const char *fmt, ...)
 {
-    va_list args;
-    va_start(args, fmt);
-
-    if (state->verbose)
+    if (state->verbose) {
+        va_list args;
+        va_start(args, fmt);
         vprintf(fmt, args);
-
-    va_end(args);
+        va_end(args);
+    }
 }
 
-#define wut() respond(state, "?");
+#define error(state) respond(state, "?");
 
 // Returns 0 in all cases except when the 'Q' (force quit) command is given,
 // in which case it returns 1
 int do_command(state_t *state, const char *input)
 {
-#define wut_and_return() \
-    do {                 \
-        wut();           \
-        return 0;        \
+#define error_and_return(state) \
+    do {                        \
+        error(state);           \
+        return 0;               \
     } while (0)
 
     if (input == NULL || !(*input)) {
-        wut_and_return();
+        error_and_return(state);
     }
 
     char c = input[0];
@@ -254,7 +261,7 @@ int do_command(state_t *state, const char *input)
         switch (c) {
         case 'i':
             if (arg != NULL) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             state->inserting = true;
@@ -262,7 +269,7 @@ int do_command(state_t *state, const char *input)
         case 'w':
             if (!(*state->savedfile)) {
                 if (arg == NULL) {
-                    wut_and_return();
+                    error_and_return(state);
                 }
 
                 for (size_t i = 0; i < arglen; i++) {
@@ -275,20 +282,29 @@ int do_command(state_t *state, const char *input)
             int count = write_to_sfile(state);
             respondf(state, "%d\n", count);
             break;
-        case 'Q':
+        case 'q':
             if (arg != NULL) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             return 1;
-        // NOTE: there's some issues with the positioning of $ and ., diagnose
+        case 'Q':
+            if (arg != NULL) {
+                error_and_return(state);
+            }
+
+            // clear changed flag to force quit
+            state->changed = false;
+            return 1;
+        // NOTE: there's some awkwardness with the positioning of $ and .,
+        // diagnose how to make this simpler
         case '.': {
             if (arg != NULL) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             if (is_tfile_empty(state)) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             fseek(state->tfile, *dot(state), SEEK_SET);
@@ -304,11 +320,11 @@ int do_command(state_t *state, const char *input)
         }
         case '$': {
             if (arg != NULL) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             if (is_tfile_empty(state)) {
-                wut_and_return();
+                error_and_return(state);
             }
 
             fseek(state->tfile, *dol(state), SEEK_SET);
@@ -324,29 +340,45 @@ int do_command(state_t *state, const char *input)
             break;
         }
         default:
-            wut();
+            error(state);
         }
     }
 
     return 0;
-#undef wut_and_return
+#undef error_and_return
 }
+
+bool has_unsaved_changes(state_t *state)
+{ return state->changed && !is_tfile_empty(state); }
 
 void run_edge(state_t *state)
 {
     char buf[LINE_MAX];
+    bool got_quit_request;
+
+retry:
+    got_quit_request = false;
     while (fgets(buf, sizeof buf, stdin) != NULL) {
         // trim all trailing whitespace
         size_t start = strcspn(buf, "\n");
         for (size_t i = start; i > 0 && is_whitespace(buf[i]); i--)
             buf[i] = '\0';
 
-        if (do_command(state, buf) == 1)
-            return;
+        if (do_command(state, buf) == 1) {
+            got_quit_request = true;
+            break;
+        }
     }
 
-    if (feof(stdin)) {
-        return;
+    if (feof(stdin) || got_quit_request) {
+        // the if branch handles the 'are you sure you want to quit' logic
+        if (has_unsaved_changes(state)) {
+            state->changed = false;
+            error(state);
+            goto retry;
+        } else {
+            return;
+        }
     }
 
     die(state, "fgets");
