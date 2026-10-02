@@ -392,8 +392,10 @@ int main(int argc, const char *argv[])
     bool silent;
     ap_add_flag(p, "--silent", "-s", "Suppress diagnostics", 'b', &silent);
 
-    if (ap_parse(p, argc, argv) == -1)
+    if (ap_parse(p, argc, argv) == -1) {
+        ap_destroy_parser(p);
         return 1;
+    }
 
     // done with parsing args
     ap_destroy_parser(p);
