@@ -126,8 +126,10 @@ int write_to_sfile(state_t *state)
     if (sf == NULL)
         die(state, "fopen");
 
-    if (is_tfile_empty(state))
+    if (is_tfile_empty(state)) {
+        fclose(sf);
         return 0;
+    }
 
     int *ptr = state->zero + 1;  // first of zero is reserved
     int *end = dol(state);
