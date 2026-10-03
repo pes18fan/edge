@@ -123,10 +123,8 @@ noreturn void die(state_t *state, const char *perror_msg)
 int write_to_sfile(state_t *state)
 {
     FILE *sf = fopen(state->savedfile, "w");
-    if (sf == NULL) {
-        fclose(sf);
+    if (sf == NULL)
         die(state, "fopen");
-    }
 
     if (is_tfile_empty(state))
         return 0;
