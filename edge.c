@@ -218,8 +218,8 @@ void respondf(state_t *state, const char *fmt, ...)
 
 #define error(state) respond(state, "?");
 
-// Returns 0 in all cases except when the 'Q' (force quit) command is given,
-// in which case it returns 1
+// Returns 0 in all cases except when quitting via the 'q' or 'Q' commands, in
+// which case it returns 1
 int do_command(state_t *state, const char *input)
 {
 #define error_and_return(state) \
@@ -296,8 +296,6 @@ int do_command(state_t *state, const char *input)
             // clear changed flag to force quit
             state->changed = false;
             return 1;
-        // NOTE: there's some awkwardness with the positioning of $ and .,
-        // diagnose how to make this simpler
         case '.': {
             if (arg != NULL) {
                 error_and_return(state);
