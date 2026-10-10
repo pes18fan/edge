@@ -1,5 +1,5 @@
 SOURCE := $(shell find . -type f -name '*.c')
-TARGET := edge
+TARGET := build/edge
 
 CC := cc
 CFLAGS := \
@@ -18,13 +18,16 @@ DEBUGFLAGS := -fsanitize=address -g
 
 all: $(TARGET)
 
-$(TARGET): $(SOURCE)
+prebuild:
+	mkdir -p build/
+
+$(TARGET): $(SOURCE) prebuild
 	$(CC) $(CFLAGS) $(DEBUGFLAGS) $(SOURCE) -o $(TARGET)
 
-release: $(SOURCE)
+release: $(SOURCE) prebuild
 	$(CC) $(CFLAGS) $(SOURCE) -O3 -o $(TARGET)
 
 clean:
 	rm -f $(TARGET)
 
-.PHONY: clean release
+.PHONY: clean release prebuild 
