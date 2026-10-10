@@ -1,4 +1,4 @@
-SOURCE := edge.c argparse.c
+SOURCE := edge.c command.c argparse.c
 TARGET := edge
 
 CC := cc

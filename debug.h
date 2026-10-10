@@ -1,5 +1,5 @@
-#ifndef ed_debug_h
-#define ed_debug_h
+#ifndef edge_debug_h
+#define edge_debug_h
 
 #define todo()                                                     \
     do {                                                           \
