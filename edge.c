@@ -1,7 +1,3 @@
-#if !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 201112L)
-#error C11 support required
-#endif
-
 #include "edge.h"
 
 #include <stdarg.h>
@@ -172,8 +168,8 @@ void write_to_tfile(state_t *state, const char *s)
 bool has_unsaved_changes(state_t *state)
 { return state->changed && !is_tfile_empty(state); }
 
-static bool is_whitespace(char c)
-{ return c == ' ' || c == '\n' || c == '\t' || c == '\v'; }
+bool is_whitespace(char c)
+{ return (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\r'); }
 
 void run_edge(state_t *state)
 {

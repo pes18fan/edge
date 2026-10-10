@@ -63,4 +63,6 @@ bool has_unsaved_changes(state_t *state);
 
 void run_edge(state_t *state);
 
+bool is_whitespace(char c);
+
 #endif
