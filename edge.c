@@ -1,11 +1,5 @@
 #include "edge.h"
 
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdnoreturn.h>
 #include <string.h>
 
 #include "argparse.h"
