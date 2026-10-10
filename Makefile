@@ -1,4 +1,4 @@
-SOURCE := edge.c command.c argparse.c
+SOURCE := $(shell find . -type f -name '*.c')
 TARGET := edge
 
 CC := cc
