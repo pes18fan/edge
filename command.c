@@ -43,7 +43,7 @@ int do_command(state_t *state, const char *input)
     // otherwise it is a command
     if (state->inserting) {
         // exit insert mode if got '.'
-        if (c == '.') {
+        if (c == '.' && !(*(input + 1))) {
             state->inserting = false;
         } else {
             write_to_tfile(state, input);
